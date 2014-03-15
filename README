@@ -1,0 +1,152 @@
+Overview
+========
+
+deploy_from_git.sh is a shell script for deploying web apps from Git
+repositories. It should be fairly generic. It's been used to deploy
+PHP and Ruby on Rails apps.
+
+It keeps a configurable (defaults to 2) number of deploys around. The
+current one is signified by the "current" symlink. Unlike some other
+deployment mechanisms it doesn't result in a copy of the repository
+metatdata being deployed. It uses git-archive to exract just the files
+needed.
+
+Use
+===
+
+    $ deploy_from_git.sh -h
+    Usage: deploy_from_git.sh [-t <target>] <SHA1 | HEAD | dirty>
+
+It takes one or two arguments. An optional target argument and the commit
+you wish to deploy. You can specify either HEAD, the SHA1 of the commit
+you wish to deploy (currently it only uses the first 8) or dirty.
+
+Dirty is HEAD + uncommitted changes, useful for when your doing testing.
+
+e.g Default use from within the app repository
+
+    $ deploy_from_git.sh aa3a5583a1cc31205390080b5309e20c48606fee
+
+
+Configuration
+=============
+
+It needs some configuration before use however. It is configured on a
+per repository basis through simple text files.
+
+For each repository you wish to deploy from you should create a file in
+~/.config/deploy_from_git/<repository>.config (creating the deploy_from_git
+if required). <repository> is simply the name of the directory that contains
+the repository you are deploying from.
+
+The config file itself should have two values.
+
+    HOST="host.domain"
+    REMOTE_APP_DIR="/path/to/app"
+
+Self explanatory, but HOST is the name of the machine your deploying to
+and REMOTE_APP_DIR is the path to the location of the app on the server.
+
+Alternative deploy targets
+--------------------------
+
+By default the script will use ~/.config/deploy_from_git/<repository>.config
+as the config file.
+
+You can however provide alternate target config files, e.g
+
+    ~/.config/deploy_from_git/<repository>.testing.config
+
+Here we provide an alternate "testing" target. To access it, call the script
+as (argument order is important)
+
+    $ deploy_from_git.sh -t testing aa3a5583a1cc31205390080b5309e20c48606fee
+
+You can have as many of these as you want as long you follow the above
+naming scheme.
+
+Excludes
+--------
+
+You can optionally create an excludes file to prevent certain
+files/directories from being uploaded. If this file exists it is passed to
+the rsync command.
+
+It should be called <repository>.excludes and stored under
+~/.config/deploy_from_git/
+
+You can also have per target excludes like with the deploy targets. Just
+name your excludes file to match e.g
+
+    <repository>.<target>.excludes
+
+If you specify a target but don't have an excludes file to match it will
+use the main excludes file if it exists.
+
+See the INCLUDE/EXCLUDE PATTERN RULES section of the rsync(1) man page
+for details of what this file can take.
+
+Number of releases
+------------------
+
+You can optionally specify the number of releases to have at any one time
+on the server. It defaults to 2 if none or less than 2 is specified.
+
+To set it, add a line to ~/.config/deploy_from_git/<repository>.config like
+
+    NR_RELEASES=4
+
+Post Run Script
+---------------
+
+You can specify a file that contains a list of commands to be run by the
+script at the end of the deployment. This file shouldn't be executable or
+contain a hash-bang line.
+
+This file should be named <repository>.post or <repository>.<target>.post
+and stored under ~/.config/deploy_from_git/
+
+Unlike with the excludes. the post file will only be read for its specific
+target. i.e if you specify a target of test and there is no .test.post file,
+but there is a main .post file, this .post will _not_ be read.
+
+Example
+=======
+
+So taking my-app as an example.
+
+    $ pwd
+    /home/andrew/programming/projects/my-app
+
+So I would create a config file called
+
+    ~/.config/deploy_from_git/my-app.config
+
+That contains something like
+
+    HOST="host.example.com"
+    REMOTE_APP_DIR="/var/www/sites/my-app"
+
+Then to do a deploy, say from the latest commit with a SHA1 of
+b63e72515f8b1dcafad59079bc27fe1c9f61cbb2
+
+    $ deploy_from_git.sh HEAD
+
+This will be truncated down to the first 8 characters (b63e7251)
+
+You'll see a bunch of messages scroll by, prefixed with either; [Local],
+[Remote} or [Error]. If you get an [Error] pay attention, something went
+wrong and the deploy likely failed.
+
+
+If I wanted to exclude some files/directories from being uploaded I would
+create a file
+
+    ~/.config/deploy_from_git/my-app.excludes
+
+containing e.g
+
+    COPYING
+    README
+    docs/
+    sql/
